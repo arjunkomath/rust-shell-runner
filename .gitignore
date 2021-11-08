@@ -106,3 +106,4 @@ dist
 server-linux
 server-macos
 server-win.exe
+server-alpine
