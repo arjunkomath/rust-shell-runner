@@ -7,6 +7,13 @@ app.use(express.json());
 
 const [shellCommand] = process.argv.slice(2);
 
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    time: Date.now(),
+  });
+});
+
 app.post('/', (req, res) => {
   const body = req.body;
 
