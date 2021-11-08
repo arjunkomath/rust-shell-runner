@@ -25,5 +25,5 @@ jobs:
 
       - uses: ncipollo/release-action@v1
         with:
-          artifacts: 'server-linux,server-macos,server-win.exe'
+          artifacts: 'server-*'
           token: ${{ secrets.GITHUB_TOKEN }}
