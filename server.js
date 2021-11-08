@@ -17,7 +17,7 @@ app.post('/', (req, res) => {
     });
   }
 
-  const command = `${shellCommand} ${JSON.stringify(body)}`;
+  const command = `echo '${JSON.stringify(body)}' | ${shellCommand}`;
   console.log('command', command);
 
   exec(command, (error, stdout, stderr) => {
