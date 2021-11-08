@@ -1,7 +1,7 @@
 {
   "name": "node-shell-runner",
   "description": "An executable HTTP server that lets you run a command",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
