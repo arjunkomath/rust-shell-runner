@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dist": "nexe index.js"
+    "dist": "nexe index.js --build"
   },
   "engines": {
     "node": ">= 12.0.0"
