@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
 const { exec } = require('child_process');
+const fs = require('fs');
 
 // parse JSON body
 app.use(express.json());
@@ -16,6 +17,7 @@ app.get('/', (req, res) => {
 
 app.post('/', (req, res) => {
   const body = req.body;
+  const now = Date.now();
 
   if (!shellCommand) {
     return res.status(400).json({
@@ -24,7 +26,9 @@ app.post('/', (req, res) => {
     });
   }
 
-  const command = `echo '${JSON.stringify(body)}' | ${shellCommand}`;
+  fs.writeFileSync(`/tmp/${now}.json`, JSON.stringify(body));
+
+  const command = `cat /tmp/${now}.json | ${shellCommand}`;
   console.log('command', command);
 
   exec(command, (error, stdout, stderr) => {
