@@ -110,8 +110,15 @@ async fn handler(req_body: String) -> HttpResponse {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let port: u16 = env::var("PORT")
+        .unwrap_or("8080".to_string())
+        .parse()
+        .expect("Invalid port");
+
+    println!("Listening on port {}", port);
+
     HttpServer::new(|| App::new().service(index).service(handler))
-        .bind(("0.0.0.0", 8080))?
+        .bind(("0.0.0.0", port))?
         .run()
         .await
 }
