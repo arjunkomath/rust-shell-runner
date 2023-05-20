@@ -1,0 +1,16 @@
+[tasks.watch]
+command = "cargo"
+args = ["run", "cat"]
+watch = true
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.check]
+command = "cargo"
+args = ["check"]
+
+[tasks.build-mac]
+command = "cargo"
+args = ["build", "--release"]

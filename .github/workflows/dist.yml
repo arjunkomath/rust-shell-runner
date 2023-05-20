@@ -1,23 +1,23 @@
-name: Build executable
+name: Build
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build:
+  release:
+    name: release ${{ matrix.target }}
     runs-on: ubuntu-latest
-
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [16.x]
-
+        target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
     steps:
-      - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
+      - uses: actions/checkout@master
+      - name: Compile and release
+        uses: rust-build/rust-build.action@v1.4.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run dist
+          RUSTTARGET: ${{ matrix.target }}
+          UPLOAD_MODE: none
