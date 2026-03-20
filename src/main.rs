@@ -1,17 +1,20 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use serde::Serialize;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Command, Stdio};
 use std::{
     env,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-mod tempfile;
+struct AppState {
+    shell_command: String,
+}
 
 #[derive(Serialize)]
 struct HelloResponse {
-    status: String, // "ok"
-    time: u64,      // Current timestamp
+    status: String,
+    time: u64,
 }
 
 #[derive(Serialize)]
@@ -36,75 +39,55 @@ async fn index() -> impl Responder {
 }
 
 #[post("/")]
-async fn handler(req_body: String) -> HttpResponse {
-    let args = env::args().collect::<Vec<String>>();
-    let shell_command: Option<&String> = args.get(1);
+async fn handler(req_body: String, data: web::Data<AppState>) -> HttpResponse {
+    let mut child = match Command::new("sh")
+        .arg("-c")
+        .arg(&data.shell_command)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            return HttpResponse::InternalServerError().json(RunnerResponse {
+                success: false,
+                error: Some(error.to_string()),
+                stderr: None,
+                stdout: None,
+            });
+        }
+    };
 
-    match shell_command {
-        Some(command) => {
-            let temp_file_path = tempfile::write_data(req_body);
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(req_body.as_bytes());
+    }
 
-            if let Ok(temp_file_path) = temp_file_path {
-                let command = format!("cat {} | {}", &temp_file_path, &command);
-                let output = Command::new("sh").arg("-c").arg(command).output();
+    match child.wait_with_output() {
+        Ok(output) => {
+            let success = output.status.success();
+            let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+            let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
 
-                match output {
-                    Ok(output) => {
-                        let stdout = String::from_utf8(output.stdout).unwrap();
-                        let stderr = String::from_utf8(output.stderr).unwrap();
+            let obj = RunnerResponse {
+                success,
+                error: None,
+                stderr: Some(stderr),
+                stdout: Some(stdout),
+            };
 
-                        let obj = RunnerResponse {
-                            success: true,
-                            error: None,
-                            stderr: Some(stderr),
-                            stdout: Some(stdout),
-                        };
-
-                        if !obj
-                            .stderr
-                            .as_ref()
-                            .map(String::as_str)
-                            .unwrap_or("")
-                            .is_empty()
-                        {
-                            return HttpResponse::BadRequest().json(obj);
-                        }
-
-                        return HttpResponse::Ok().json(obj);
-                    }
-                    Err(error) => {
-                        let obj = RunnerResponse {
-                            success: false,
-                            error: Some(error.to_string()),
-                            stderr: None,
-                            stdout: None,
-                        };
-
-                        return HttpResponse::InternalServerError().json(obj);
-                    }
-                }
+            if success {
+                HttpResponse::Ok().json(obj)
+            } else {
+                HttpResponse::BadRequest().json(obj)
             }
-
-            let obj = RunnerResponse {
-                success: false,
-                error: Some("Internal Error: Failed to write tmp file".to_string()),
-                stderr: None,
-                stdout: None,
-            };
-
-            return HttpResponse::InternalServerError().json(obj);
         }
-        _ => {
-            // return runner response with error
-            let obj = RunnerResponse {
-                success: false,
-                error: Some("Shell command is missing".to_string()),
-                stderr: None,
-                stdout: None,
-            };
-
-            return HttpResponse::BadRequest().json(obj);
-        }
+        Err(error) => HttpResponse::InternalServerError().json(RunnerResponse {
+            success: false,
+            error: Some(error.to_string()),
+            stderr: None,
+            stdout: None,
+        }),
     }
 }
 
@@ -115,10 +98,27 @@ async fn main() -> std::io::Result<()> {
         .parse()
         .expect("Invalid port");
 
+    let shell_command = env::args()
+        .nth(1)
+        .expect("Shell command argument is required");
+
     println!("Listening on port {}", port);
 
-    HttpServer::new(|| App::new().service(index).service(handler))
-        .bind(("0.0.0.0", port))?
-        .run()
-        .await
+    let payload_limit = env::var("MAX_PAYLOAD_SIZE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1024 * 1024); // 1MB default
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(AppState {
+                shell_command: shell_command.clone(),
+            }))
+            .app_data(web::PayloadConfig::new(payload_limit))
+            .service(index)
+            .service(handler)
+    })
+    .bind(("::", port))?
+    .run()
+    .await
 }
